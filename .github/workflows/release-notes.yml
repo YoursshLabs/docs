@@ -5,11 +5,13 @@ name: Release notes
 # Runs every six hours, on demand, or when the app's release workflow sends a
 # `yourssh-release` repository_dispatch.
 #
-# main is protected (pull request + a green "Build and check"), so the job
-# opens a pull request, runs the docs workflow on it (a PR opened with
-# GITHUB_TOKEN doesn't start workflows by itself), merges it once the check is
-# green, then runs the docs workflow on main to deploy. Needs the organisation
-# setting "Allow GitHub Actions to create and approve pull requests".
+# main is protected (pull request + a green "Build and check"). A pull request
+# opened with GITHUB_TOKEN doesn't start the docs workflow, and a dispatched
+# run doesn't count for the PR, so this job runs the same checks itself
+# (mint validate + broken-links, above), records them as the "Build and check"
+# commit status on the PR head, merges, then runs the docs workflow on main to
+# deploy. Needs the organisation setting "Allow GitHub Actions to create and
+# approve pull requests".
 on:
   schedule:
     - cron: "23 */6 * * *"
@@ -20,6 +22,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  statuses: write
   actions: write
 
 concurrency:
@@ -82,16 +85,16 @@ jobs:
               --title "docs: release notes for ${TAG}" \
               --body "Generated from the YourSSH CHANGELOG at ${TAG} by the release-notes workflow."
           fi
-          # Produce the required "Build and check" status on the PR head.
-          gh workflow run docs.yml --ref "$branch"
-          run_id=""
-          for i in $(seq 1 30); do
-            sleep 10
-            run_id=$(gh run list --workflow docs.yml --branch "$branch" --event workflow_dispatch \
-              --json databaseId,headSha --jq "map(select(.headSha == \"$sha\")) | .[0].databaseId // empty")
-            [ -n "$run_id" ] && break
+          # The checks above ran on exactly this tree: record them as the
+          # required "Build and check" status on the PR head.
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${sha}" \
+            -f state=success -f context="Build and check" \
+            -f description="mint validate + broken-links passed (release-notes workflow)" \
+            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" >/dev/null
+          for i in $(seq 1 12); do
+            state=$(gh pr view "$branch" --json mergeStateStatus --jq .mergeStateStatus)
+            case "$state" in CLEAN|UNSTABLE|HAS_HOOKS) break ;; esac
+            sleep 5
           done
-          [ -n "$run_id" ] || { echo "::error::The docs check did not start"; exit 1; }
-          gh run watch "$run_id" --exit-status
           gh pr merge "$branch" --merge --delete-branch
           gh workflow run docs.yml --ref main
