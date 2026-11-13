@@ -8,3 +8,6 @@ drafts/
 
 # Task notes for maintainers (not published)
 .docs/
+
+# Maintainer scripts (not published)
+scripts/

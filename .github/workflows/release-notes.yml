@@ -1,0 +1,97 @@
+name: Release notes
+
+# Regenerates release-notes.mdx from the YourSSH CHANGELOG.md at the latest
+# release, checks the build and links, lands it on main through a PR and deploys.
+# Runs every six hours, on demand, or when the app's release workflow sends a
+# `yourssh-release` repository_dispatch.
+#
+# main is protected (pull request + a green "Build and check"), so the job
+# opens a pull request, runs the docs workflow on it (a PR opened with
+# GITHUB_TOKEN doesn't start workflows by itself), merges it once the check is
+# green, then runs the docs workflow on main to deploy. Needs the organisation
+# setting "Allow GitHub Actions to create and approve pull requests".
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [yourssh-release]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: release-notes
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate from the latest release's CHANGELOG
+        id: gen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$(gh api repos/YoursshLabs/yourssh/releases/latest --jq .tag_name)
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected release tag: $tag"; exit 1
+          fi
+          gh api "repos/YoursshLabs/yourssh/contents/CHANGELOG.md?ref=${tag}" --jq .content | base64 -d > "$RUNNER_TEMP/CHANGELOG.md"
+          python3 scripts/gen_release_notes.py "$RUNNER_TEMP/CHANGELOG.md" release-notes.mdx
+          if git diff --quiet -- release-notes.mdx; then
+            echo "Release notes already match $tag"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Validate the site
+        if: steps.gen.outputs.changed == 'true'
+        run: |
+          npm i -g mint
+          mint validate
+          mint broken-links
+
+      - name: Open the pull request, check it, merge and deploy
+        if: steps.gen.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.gen.outputs.tag }}
+        run: |
+          set -euo pipefail
+          branch="release-notes/${TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add release-notes.mdx
+          git commit -m "docs: release notes for ${TAG}"
+          git push --force origin "$branch"
+          sha=$(git rev-parse HEAD)
+          if ! gh pr view "$branch" --json number >/dev/null 2>&1; then
+            gh pr create --base main --head "$branch" \
+              --title "docs: release notes for ${TAG}" \
+              --body "Generated from the YourSSH CHANGELOG at ${TAG} by the release-notes workflow."
+          fi
+          # Produce the required "Build and check" status on the PR head.
+          gh workflow run docs.yml --ref "$branch"
+          run_id=""
+          for i in $(seq 1 30); do
+            sleep 10
+            run_id=$(gh run list --workflow docs.yml --branch "$branch" --event workflow_dispatch \
+              --json databaseId,headSha --jq "map(select(.headSha == \"$sha\")) | .[0].databaseId // empty")
+            [ -n "$run_id" ] && break
+          done
+          [ -n "$run_id" ] || { echo "::error::The docs check did not start"; exit 1; }
+          gh run watch "$run_id" --exit-status
+          gh pr merge "$branch" --merge --delete-branch
+          gh workflow run docs.yml --ref main
