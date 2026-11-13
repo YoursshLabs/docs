@@ -14,7 +14,7 @@ YourSSH keeps a reference to each private key file. It does not copy the file in
 
 ## Keys found automatically
 
-On startup YourSSH looks in `~/.ssh` for the default key names `id_ed25519`, `id_rsa`, `id_ecdsa` and `id_dsa` and lists any it finds. If a matching `<name>.pub` file or `<name>-cert.pub` certificate sits next to the key, YourSSH reads it too.
+On startup YourSSH looks in `~/.ssh` for the default key names `id_ed25519`, `id_rsa`, `id_ecdsa` and `id_dsa` and lists any it finds, except keys you removed from the Keychain. If a matching `<name>.pub` file or `<name>-cert.pub` certificate sits next to the key, YourSSH reads it too.
 
 When no keys are listed, the screen says **No keys added** and offers **Import Key** and **+ Generate Key**.
 
@@ -74,7 +74,7 @@ Hover a key row to show three actions on the right.
 
 - **Copy public key** puts the public key on your clipboard.
 - **Deploy to host…** opens a dialog that lists your saved hosts, with a search box. Pick a host and YourSSH connects to it and appends the public key to `~/.ssh/authorized_keys`, creating `~/.ssh` with mode `700` if needed. Deploying is idempotent: if the key is already there, YourSSH says **Key already deployed** and changes nothing. Otherwise it confirms **Public key added**.
-- **Remove key** asks you to confirm with **Remove "name" from keychain?**. Removing takes the key out of YourSSH only. The key file on disk is not deleted, and neither is a passphrase that YourSSH saved for the key in the system credential store. A key in `~/.ssh` with one of the default names comes back at the next launch, because YourSSH scans that folder on every start.
+- **Remove key** asks you to confirm with **Remove "name" from keychain?**. Removing takes the key out of YourSSH and deletes the passphrase YourSSH saved for it in the system credential store. The key file on disk is not deleted. A removed key from `~/.ssh` stays removed: the startup scan skips it. Import the same file again with **Import key** to bring it back.
 
 <Frame caption="Deploy key to host: choose a saved host from the list.">
   ![The Deploy key to host dialog listing saved hosts](/images/04-keychain/07-deploy-dialog.png)

@@ -27,7 +27,7 @@ The app has four tabs along the bottom: **Hosts**, **Snippets**, **Keys** and **
   </Frame>
 </Columns>
 
-If your phone has no biometrics or screen lock enrolled, the app doesn't lock, so you can't be locked out of a screen you can't unlock. The **Auto-lock** row always reads `After 1 min` and can't be changed. It is only a label: the app locks as soon as it leaves the foreground.
+If your phone has no biometrics or screen lock enrolled, the app doesn't lock, so you can't be locked out of a screen you can't unlock. The **Auto-lock** row reads **Immediately when you leave the app**: the app locks as soon as it goes to the background.
 
 ## Hosts
 
@@ -51,9 +51,8 @@ Tap the **+** button on the **Hosts** tab to open **New host**.
 1. Fill in **Nickname**, **Hostname** and **Port** (22 by default).
 2. Enter the **Username**.
 3. Choose a **Method**: **Password**, or **SSH key** and then pick one from your keys in **Key**.
-4. **Unlock with biometrics** is the same switch as **Settings → Security → Biometric unlock**. It turns the app lock on or off for the whole app, not for this host.
-5. Optional, under **Advanced**: set a **Group** (for example `Production`; it is stored as the host's first tag) and a **Run on connect** command (for example `tmux attach`).
-6. Tap **Save**, or **Save & connect** to connect right away.
+4. Optional, under **Advanced**: set a **Group** (for example `Production`; it is stored as the host's first tag) and a **Run on connect** command (for example `tmux attach`).
+5. Tap **Save**, or **Save & connect** to connect right away.
 
 <Columns cols={3}>
   <Frame caption="The authentication and advanced options.">
@@ -127,7 +126,7 @@ Pulling from the cloud and scanning a QR code both **replace** the host list on 
 </Warning>
 
 <Note>
-The screen's subtitle says it syncs "hosts, keys & snippets". In practice only your hosts and their saved passwords are synced or transferred. SSH keys, snippets, settings and AI keys stay on the device where you created them. Import the keys you need on the phone from the **Keys** tab.
+Only your hosts and their saved passwords are synced or transferred, as the screen says. SSH keys, snippets, settings and AI keys stay on the device where you created them. Import the keys you need on the phone from the **Keys** tab.
 </Note>
 
 ## Connect and use the terminal
