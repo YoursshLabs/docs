@@ -2,7 +2,7 @@
 
 Source of the YourSSH documentation site, built with [Mintlify](https://mintlify.com).
 
-**Live site: https://sen-f208ff9e.mintlify.app**
+**Live site: https://your-ssh.mintlify.site**
 
 The app lives in [YoursshLabs/yourssh](https://github.com/YoursshLabs/yourssh).
 
