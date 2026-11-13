@@ -1,0 +1,76 @@
+name: Release notes
+
+# Regenerates release-notes.mdx from the YourSSH CHANGELOG.md at the latest
+# release, checks the build and links, pushes the page to main and deploys.
+# Runs every six hours, on demand, or when the app's release workflow sends a
+# `yourssh-release` repository_dispatch.
+#
+# The organisation doesn't let GitHub Actions open pull requests, so this job
+# validates the site itself and pushes to main directly; the "Protect Main"
+# ruleset lets only GitHub Actions bypass the pull-request requirement.
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [yourssh-release]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: release-notes
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate from the latest release's CHANGELOG
+        id: gen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$(gh api repos/YoursshLabs/yourssh/releases/latest --jq .tag_name)
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected release tag: $tag"; exit 1
+          fi
+          gh api "repos/YoursshLabs/yourssh/contents/CHANGELOG.md?ref=${tag}" --jq .content | base64 -d > "$RUNNER_TEMP/CHANGELOG.md"
+          python3 scripts/gen_release_notes.py "$RUNNER_TEMP/CHANGELOG.md" release-notes.mdx
+          if git diff --quiet -- release-notes.mdx; then
+            echo "Release notes already match $tag"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Validate the site
+        if: steps.gen.outputs.changed == 'true'
+        run: |
+          npm i -g mint
+          mint validate
+          mint broken-links
+
+      - name: Push to main and deploy
+        if: steps.gen.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.gen.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release-notes.mdx
+          git commit -m "docs: release notes for ${TAG}"
+          git push origin HEAD:main
+          # A push made with GITHUB_TOKEN doesn't start other workflows, so
+          # run the docs workflow on main explicitly to deploy.
+          gh workflow run docs.yml --ref main

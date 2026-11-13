@@ -104,6 +104,17 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "Release notes",
+        "groups": [
+          {
+            "group": "Releases",
+            "pages": [
+              "release-notes"
+            ]
+          }
+        ]
       }
     ],
     "global": {
