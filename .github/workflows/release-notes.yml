@@ -1,7 +1,7 @@
 name: Release notes
 
 # Regenerates release-notes.mdx from the YourSSH CHANGELOG.md at the latest
-# release, checks the build and links, pushes the page to main and deploys.
+# release, checks the build and links, lands it on main through a PR and deploys.
 # Runs every six hours, on demand, or when the app's release workflow sends a
 # `yourssh-release` repository_dispatch.
 #
