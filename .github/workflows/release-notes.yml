@@ -5,9 +5,11 @@ name: Release notes
 # Runs every six hours, on demand, or when the app's release workflow sends a
 # `yourssh-release` repository_dispatch.
 #
-# The organisation doesn't let GitHub Actions open pull requests, so this job
-# validates the site itself and pushes to main directly; the "Protect Main"
-# ruleset lets only GitHub Actions bypass the pull-request requirement.
+# main is protected (pull request + a green "Build and check"), so the job
+# opens a pull request, runs the docs workflow on it (a PR opened with
+# GITHUB_TOKEN doesn't start workflows by itself), merges it once the check is
+# green, then runs the docs workflow on main to deploy. Needs the organisation
+# setting "Allow GitHub Actions to create and approve pull requests".
 on:
   schedule:
     - cron: "23 */6 * * *"
@@ -17,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
   actions: write
 
 concurrency:
@@ -59,18 +62,36 @@ jobs:
           mint validate
           mint broken-links
 
-      - name: Push to main and deploy
+      - name: Open the pull request, check it, merge and deploy
         if: steps.gen.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.gen.outputs.tag }}
         run: |
           set -euo pipefail
+          branch="release-notes/${TAG}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
           git add release-notes.mdx
           git commit -m "docs: release notes for ${TAG}"
-          git push origin HEAD:main
-          # A push made with GITHUB_TOKEN doesn't start other workflows, so
-          # run the docs workflow on main explicitly to deploy.
+          git push --force origin "$branch"
+          sha=$(git rev-parse HEAD)
+          if ! gh pr view "$branch" --json number >/dev/null 2>&1; then
+            gh pr create --base main --head "$branch" \
+              --title "docs: release notes for ${TAG}" \
+              --body "Generated from the YourSSH CHANGELOG at ${TAG} by the release-notes workflow."
+          fi
+          # Produce the required "Build and check" status on the PR head.
+          gh workflow run docs.yml --ref "$branch"
+          run_id=""
+          for i in $(seq 1 30); do
+            sleep 10
+            run_id=$(gh run list --workflow docs.yml --branch "$branch" --event workflow_dispatch \
+              --json databaseId,headSha --jq "map(select(.headSha == \"$sha\")) | .[0].databaseId // empty")
+            [ -n "$run_id" ] && break
+          done
+          [ -n "$run_id" ] || { echo "::error::The docs check did not start"; exit 1; }
+          gh run watch "$run_id" --exit-status
+          gh pr merge "$branch" --merge --delete-branch
           gh workflow run docs.yml --ref main
