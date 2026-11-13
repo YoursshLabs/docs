@@ -1,97 +1,72 @@
 ---
 title: "Introduction"
-description: "Welcome to the new home for your documentation"
+description: "YourSSH is a fast, open-source SSH, SFTP, RDP and VNC client for macOS, Windows, Linux and Android."
+icon: "terminal"
 ---
 
-## Setting up
+YourSSH is an open-source client for people who work on many servers: developers, sysadmins and DevOps engineers. It keeps your hosts, keys, files and remote desktops in one dark-themed app, with the secrets stored in your system credential store.
 
-Get your documentation site up and running in minutes.
+<Frame caption="The hosts dashboard: groups, host cards and live status dots.">
+![YourSSH hosts dashboard in grid view, with two groups and four host cards](/images/06-dashboard/01-grid.png)
+</Frame>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+## Platforms
 
-## Make it yours
+| Platform | Builds |
+|---|---|
+| macOS | Universal build (Apple Silicon and Intel), signed with a Developer ID and notarized |
+| Windows | x64 and arm64 installer, plus portable `.zip` |
+| Linux | x86_64 and arm64, as `.deb` (Debian, Ubuntu) or `.tar.gz` |
+| Android | APK (development preview) |
 
-Design a docs site that looks great and empowers your users.
+See [Installation](/installation) for download links and first-launch notes.
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+## What you can do
+
+<CardGroup cols={2}>
+  <Card title="Hosts" icon="server" href="/user-guide/hosts">
+    Save SSH, RDP and VNC hosts, group and search them, chain jump hosts.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Host keys" icon="shield-check" href="/user-guide/host-keys">
+    Trust on first use, key-change warnings and the Known hosts screen.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Terminal" icon="square-terminal" href="/user-guide/terminal">
+    Tabs, split view, search, shell integration and hotkeys.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Bulk actions" icon="layers" href="/user-guide/bulk-actions">
+    Connect to, run a command on, or push files to many hosts at once.
   </Card>
-</Columns>
+  <Card title="Port forwarding" icon="arrow-left-right" href="/user-guide/port-forwarding">
+    Local, remote and dynamic SOCKS5 tunnels.
+  </Card>
+  <Card title="SFTP" icon="folder-open" href="/user-guide/sftp">
+    A dual-panel file manager with uploads and downloads.
+  </Card>
+  <Card title="RDP and VNC" icon="monitor" href="/user-guide/rdp">
+    Remote desktops, direct or through an SSH tunnel.
+  </Card>
+  <Card title="Keychain" icon="key-round" href="/user-guide/keychain">
+    Generate, import and deploy SSH keys.
+  </Card>
+  <Card title="Recording and audit log" icon="video" href="/user-guide/recording">
+    Replay sessions and keep a secret-redacted local trail.
+  </Card>
+  <Card title="Sync" icon="refresh-cw" href="/user-guide/sync">
+    Move your hosts between devices, encrypted.
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+## Where to start
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="Install YourSSH" icon="download" href="/installation">
+    Download the build for your operating system.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Add a host, connect and open SFTP in a few minutes.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Source and support
 
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+YourSSH is developed in the open at [github.com/YoursshLabs/yourssh](https://github.com/YoursshLabs/yourssh). Report bugs and request features in the [issue tracker](https://github.com/YoursshLabs/yourssh/issues). To build from source or write plugins, see the **Developer guide** tab.

@@ -1,0 +1,138 @@
+---
+title: Plugin system
+description: How YourSSH loads built-in Dart plugins and JavaScript script plugins, and how permissions, consent and limits keep script plugins contained.
+icon: puzzle
+---
+
+YourSSH has two kinds of plugins. They coexist at runtime and appear together under **Plugins** in the sidebar.
+
+| | Built-in Dart plugins | JavaScript script plugins |
+|---|---|---|
+| Loaded | Compiled into the app | From disk at runtime, no rebuild |
+| Language | Dart and Flutter | JavaScript (QuickJS) |
+| Examples | Snippets, DevOps Hub, Web Tools | Anything a user drops into `~/.yourssh/plugins` |
+| Trust | Part of the app | Sandboxed, permission-gated, user consent |
+| Who writes them | App contributors | Anyone |
+
+To write a script plugin, see [Plugin authoring](/developer-guide/plugin-authoring).
+
+## Built-in Dart plugins
+
+Dart plugins are registered in [`app/lib/plugins/plugin_registry.dart`](https://github.com/YoursshLabs/yourssh/blob/develop/app/lib/plugins/plugin_registry.dart) in the `kRegisteredPlugins` list. The three that ship today are:
+
+| Package | Plugin |
+|---|---|
+| `yourssh_snippets` | Snippets: a reusable command library |
+| `yourssh_devops` | DevOps Hub: containers, network tools, Cloudflare tunnel, mail catcher, MCP server |
+| `yourssh_web_tools` | Web Tools: an in-app browser over port-forwarded HTTP |
+
+### Add a Dart plugin
+
+<Steps>
+  <Step title="Add the package">
+    Add it to the dependencies in `app/pubspec.yaml` (and to `dependency_overrides` if it is a local package under `packages/`).
+  </Step>
+  <Step title="Register it">
+    Import it in `plugin_registry.dart` and add an instance to `kRegisteredPlugins`.
+  </Step>
+</Steps>
+
+### The YourSSHPlugin interface
+
+Every Dart plugin implements `YourSSHPlugin` from `packages/yourssh_plugin_api`:
+
+- `buildUI(context, pluginContext)` returns the plugin's widget. Wrap it in `YsPluginHost` (from `yourssh_ui`) so it keeps the app's forui theme even when it is mounted outside the app's root builder, as Snippets, DevOps and Web Tools do.
+- `onActivate(ctx)` and `onDeactivate()` are lifecycle hooks.
+- `minApiVersion` is checked at runtime against the app's API version.
+
+`YourSSHPluginContext` gives a plugin controlled access to the app: the active sessions, `execCommand(sessionId, cmd)`, `sendInput(sessionId, text)` to type into a session's terminal (Snippets uses it to insert a snippet), and namespaced `savePreference` and `getPreference`.
+
+Dart plugins can be switched on and off with feature flags in **Settings**.
+
+## JavaScript script plugins
+
+Script plugins live in `~/.yourssh/plugins/`, one folder each, with a `plugin.json` manifest. The runtime is the `packages/yourssh_script_engine` package.
+
+### Components
+
+```text
+PluginLoader        scans the plugins folder, loads plugins, hot-reloads on change
+  └── QuickJsRuntime   one isolated QuickJS context per plugin (Dart FFI)
+        ├── JsRuntimeRegistrar   exposes the Dart bridge APIs to JS
+        ├── HookBus              routes events to plugin handlers
+        └── PermissionGuard      checks every call against the manifest
+```
+
+- **`PluginManifest`** parses and validates `plugin.json`: id, name, version, entry file, minimum app version and permissions. An unknown permission is rejected.
+- **`PluginUiRegistry`** lets a plugin register UI through `ui.register(id, spec)`; the app renders it in the plugin manager. A plugin can also declare a **panel**, an HTML view shown in the app. A panel is plugin-controlled HTML, so its messages to the app (running a command, listing sessions, reading a file) go through the same permission checks as the JavaScript bridges.
+- The plugin manager screens let users enable or disable a plugin, reload it and read its `console.log` output.
+
+### Hooks
+
+The `HookBus` delivers typed events to plugin handlers in three styles:
+
+| Style | What the handler can do |
+|---|---|
+| Transform | Modify the data, for example rewrite terminal output. |
+| Intercept | Block the event entirely. |
+| Observe | Run side effects only; it can't change the data. |
+
+The app wires the bus into `SshService`, so plugins see `terminal.output`, `terminal.input`, session connect and disconnect events, and `ssh.exec` command events. The complete list of events and the permission each one needs is in [Plugin authoring](/developer-guide/plugin-authoring).
+
+### Bridges
+
+Bridges are the Dart APIs a plugin can call from JavaScript:
+
+| Bridge | Calls |
+|---|---|
+| `ssh` | `ssh.exec(sessionId, cmd)`, `ssh.write(sessionId, data)` |
+| `sftp` | `sftp.list`, `sftp.readFile`, `sftp.writeFile` |
+| `storage` | `storage.get`, `storage.set`, `storage.delete`, namespaced per plugin |
+| `ui` | `ui.showNotification(msg)`, `ui.register(id, spec)` |
+
+### Permissions
+
+A plugin must declare each permission in its manifest. The recognized permissions are:
+
+`terminal.read`, `terminal.transform`, `terminal.intercept`, `terminal.inject`, `session.observe`, `session.control`, `ssh.exec`, `sftp.read`, `sftp.write`, `command.intercept`, `ui.notify`, `ui.statusbar`, `ui.panel`, `ui.clipboard`.
+
+`PermissionGuard` checks the manifest before it dispatches any bridge call. Observing is separate from changing: `terminal.read` observes output only, and rewriting it needs `terminal.transform`.
+
+### Consent
+
+The first time a plugin loads, the app shows a consent dialog listing the permissions it asks for. The user must accept before the plugin runs.
+
+- Consent is bound to a SHA-256 hash of **every file** in the plugin folder. Change any file and the user is asked again.
+- Stored grants are intersected with the manifest's current permissions, so a plugin can't gain a permission by editing its manifest.
+- Pending consent requests queue in order.
+- `manifest.entry` and a panel's HTML entry must stay inside the plugin folder. Paths with `../`, absolute paths and symlinks that escape are rejected.
+
+### Execution limits
+
+The C bridge (`packages/yourssh_script_engine/native/bridge/qjs_bridge.c`) enforces hard limits on every plugin:
+
+| Limit | Value |
+|---|---|
+| Time per hook or panel message | 250 ms |
+| Time to load | 5 s |
+| Memory | 64 MiB |
+| Stack | 512 KiB |
+
+A call that exceeds its deadline raises `QuickJsTimeoutException`.
+
+### Circuit breaker
+
+`PluginErrorTracker` protects the app from a misbehaving plugin. An error counts 1, a timeout counts 5 and a success resets the count. At 10, the plugin's hooks are skipped and the plugin is unloaded. The user can see what happened in the plugin's console.
+
+### Reserved built-in ids
+
+The ids of the built-in Dart plugins are reserved. `PluginLoader` never loads or prompts for a script plugin with a reserved id, so a script plugin can't impersonate Snippets, DevOps Hub or Web Tools.
+
+<Note>
+Only the macOS arm64 QuickJS library (`libqjsbridge.dylib`) is prebuilt. See [Build from source](/developer-guide/build#javascript-plugin-runtime) to rebuild it after changing the C bridge.
+</Note>
+
+## Related pages
+
+- [Plugin authoring](/developer-guide/plugin-authoring)
+- [Architecture](/developer-guide/architecture)

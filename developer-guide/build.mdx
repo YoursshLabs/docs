@@ -1,0 +1,136 @@
+---
+title: Build from source
+description: Set up the toolchain, run and build YourSSH, build the native RDP and VNC libraries, and understand the CI workflows.
+icon: hammer
+---
+
+## Prerequisites
+
+- **Flutter 3.50.0.** CI pins this version (`FLUTTER_VERSION` in `pr-test.yml` and `release.yml`), so use the same one locally. Run `flutter doctor` and fix what it reports.
+- A platform toolchain:
+  - macOS: Xcode.
+  - Windows: Visual Studio with the **Desktop development with C++** workload.
+  - Linux: `clang`, `cmake`, `ninja-build`, `pkg-config` and `libgtk-3-dev`. The CI job also installs `liblzma-dev`, `libsecret-1-dev`, `libjsoncpp-dev`, `libkeybinder-3.0-dev` and `libnotify-dev`.
+  - Android: JDK 17 and the Android SDK.
+- A Rust toolchain, only if you want RDP or VNC (see [below](#native-rdp-and-vnc-libraries)).
+
+## Run in development
+
+```bash
+git clone https://github.com/YoursshLabs/yourssh.git
+cd yourssh/app
+flutter pub get
+flutter run -d macos     # or: -d windows / -d linux
+```
+
+A debug build (`flutter run`) uses its own CLI endpoint and run directory, so it never takes over an installed YourSSH. See the CLI notes in [`CLAUDE.md`](https://github.com/YoursshLabs/yourssh/blob/develop/CLAUDE.md).
+
+## Build a release
+
+```bash
+cd app
+flutter build macos      # app/build/macos/Build/Products/Release/
+flutter build windows    # app/build/windows/x64/runner/Release/
+flutter build linux      # app/build/linux/x64/release/bundle/
+flutter build apk        # Android
+```
+
+## Native RDP and VNC libraries
+
+RDP and VNC are Rust crates (`packages/yourssh_rdp`, `packages/yourssh_vnc`). The compiled libraries (`.dylib`, `.so`, `.dll`) are **not tracked in git**. Build them once after cloning, and again after you change the Rust code:
+
+```bash
+bash packages/yourssh_rdp/build.sh    # macOS / Linux
+pwsh packages/yourssh_rdp/build.ps1   # Windows
+bash packages/yourssh_vnc/build.sh    # same pattern for VNC
+```
+
+The script builds the crate and copies the library into `packages/<crate>/assets/native/`. In development the app loads it from there; in a release build it is bundled next to the app. Without the library, the app runs normally and only RDP or VNC connections fail.
+
+Run the crate's own tests without Flutter:
+
+```bash
+cargo test --manifest-path packages/yourssh_rdp/rust/Cargo.toml
+```
+
+<Note>
+The Android build is SSH only and builds no Rust libraries.
+</Note>
+
+## JavaScript plugin runtime
+
+JavaScript plugins run on QuickJS through a small C bridge in `packages/yourssh_script_engine/native/`. Only the macOS arm64 `libqjsbridge.dylib` is prebuilt and committed. After you change the C bridge, rebuild it with:
+
+```bash
+bash packages/yourssh_script_engine/native/build_macos.sh
+```
+
+## Analyze, test and lint
+
+```bash
+cd app
+flutter analyze --no-fatal-infos    # what CI runs
+flutter test                        # all app tests
+flutter test test/services/sync_service_test.dart   # one file
+flutter test --name "pattern"                       # by test name
+```
+
+Packages have their own suites. Run `flutter test` (or `dart test` for `yourssh_cli`) inside the package directory.
+
+From the repository root, run the UI lint gate:
+
+```bash
+bash tool/check_ui_lint_selftest.sh
+bash tool/check_ui_lint.sh
+```
+
+<Info>
+`--no-fatal-infos` is deliberate. On Flutter 3.50, a few hundred infos are deprecations of `package:flutter/material.dart` that a separate migration will clear. Warnings and errors still fail the build.
+</Info>
+
+## Android toolchain
+
+Each Flutter release raises the minimum Gradle, Android Gradle Plugin (AGP) and Kotlin versions that its Gradle plugin accepts, and the Android build fails below them. When you bump Flutter, bump the Android toolchain with it. The versions live in `app/android/gradle/wrapper/gradle-wrapper.properties` and the `plugins {}` block of `app/android/settings.gradle.kts`. The `android` job in `pr-test.yml` (a debug APK build) is the check.
+
+## Regenerate the docs screenshots
+
+The screenshots in this documentation come from an isolated journey that drives the real app against local demo servers. It needs macOS and Docker.
+
+```bash
+tool/docs_journey.sh setup      # build the demo image and start the demo containers
+tool/docs_journey.sh all        # build the app, run the journey, write PNGs
+tool/docs_journey.sh teardown   # remove only what setup created
+```
+
+`setup` generates a throwaway client key (outside the repository), builds a demo SSH image and starts five containers: a demo server, a bastion, an internal database host behind the bastion, an RDP desktop and a VNC desktop. `all` builds the integration-test app once, then launches it with a temporary `HOME`, so your real settings, hosts and `~/.yourssh` are never touched. It runs a desktop pass and a mobile pass and writes the PNGs and an `INDEX.md` to `screenshots/docs/`. Set `SECTIONS="01,02"` to limit sections or `DOCS_OUT` to change the output directory.
+
+## CI workflows
+
+Both workflows are in [`.github/workflows/`](https://github.com/YoursshLabs/yourssh/tree/develop/.github/workflows).
+
+**`pr-test.yml`** runs on pull requests to `develop` and `master`:
+
+| Job | What it checks |
+|---|---|
+| `app` | `flutter analyze` and `flutter test` for the app (Linux). |
+| `ui` | The UI lint gate, then analyze and test for `yourssh_ui`. |
+| `plugins` | Analyze and test for Snippets, DevOps and Web Tools. |
+| `bridge` | For `yourssh_rdp` and `yourssh_vnc`: cargo tests, the native build, then the Dart tests. |
+| `android` | A debug APK build, which proves the Gradle, AGP and Kotlin versions. |
+| `cli` | Tests and a compile smoke test for `yourssh_cli`. |
+| `windows-cli` | The CLI endpoint and the app's CLI tests on a Windows runner. |
+| `test` | The required check named `test`. It fails unless `app`, `ui`, `bridge`, `android`, `cli` and `windows-cli` all succeed. |
+
+**`release.yml`** runs when a commit lands on `master`. It runs analyze and tests first, then builds every platform in parallel:
+
+- macOS: universal build, signed with a Developer ID certificate, notarized and stapled, shipped as a DMG and a ZIP.
+- Windows: portable ZIP and an Inno Setup installer, for x64 and ARM64.
+- Linux: `.deb` package and portable `tar.gz`, for x86_64 and arm64.
+- Android: a release APK.
+
+A final `release` job, the only one with a write token, creates the GitHub release and attaches the artifacts.
+
+## Next steps
+
+- [Architecture](/developer-guide/architecture) to learn the codebase.
+- [Contributing](/developer-guide/contributing) for the pull request workflow.

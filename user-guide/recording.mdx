@@ -1,0 +1,91 @@
+---
+title: "Session recording"
+description: "Record terminal sessions to asciicast files, replay them in the built-in player, and keep secrets out of the recording."
+icon: "video"
+---
+
+YourSSH records terminal sessions to [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/) (`.cast`) files. Use them for runbooks, demos or a record of what happened on a host.
+
+## Start and stop a recording
+
+Open an SSH or local terminal session and click **REC** at the top right of the terminal. While a session records, the button turns red and its tooltip reads **Stop recording** (it reads **Start recording** when idle). The status bar at the bottom shows a red `REC` timer.
+
+<Frame caption="A recording in progress: the REC button at the top right and the REC timer in the status bar.">
+  ![A terminal session with the REC button active and a 00:00:02 timer in the status bar](/images/03-first-connect/20-recording-active.png)
+</Frame>
+
+Click the button again to stop. Closing the session also stops the recording. Recording isn't available for RDP and VNC tabs.
+
+<Frame caption="After stopping, the button returns to its idle state.">
+  ![The terminal after the recording stopped](/images/10-recordings/01-recording-stopped.png)
+</Frame>
+
+## Record every session of a host
+
+To record a host every time you connect, turn on **Auto-record sessions** in the host editor ("Start recording automatically on connect"). See [Hosts](/user-guide/hosts).
+
+## Redact secrets
+
+YourSSH masks secrets before it writes them to the file, so a recording you share doesn't leak a password someone echoed mid-session. Each match is replaced with `[REDACTED]`. The patterns are the same ones the [audit log](/user-guide/audit-log) uses:
+
+- `password=`, `token=`, `secret=` and `api_key=` style values, including prefixed forms such as `PGPASSWORD=`
+- `Authorization: Bearer` tokens
+- `sshpass -p`
+- the attached `-p<password>` form of `mysql` and `mariadb`
+- `redis-cli -a`
+- passwords inside URLs (`scheme://user:pass@host`)
+
+Redaction is on by default. You control it in two places:
+
+- **Settings → Recording → Redact secrets in recordings** is the global switch.
+- **Redact secrets in recordings** in a host's editor opts a single host out. It only has an effect while the global switch is on.
+
+Local terminal recordings follow the global switch alone. YourSSH reads the setting when a recording starts, so changing it during a recording applies to the next one.
+
+<Warning>
+Redaction is a safety net, not a guarantee. A secret broken up by color codes, or one that doesn't match a known pattern, isn't caught. Also, YourSSH buffers output briefly so it can match secrets split across chunks, which makes replay timing per line rather than per keystroke.
+</Warning>
+
+## Recording library
+
+Click **Recordings** in the sidebar to open the **Recording Library**. It groups recordings by host (for example `demo@127.0.0.1`) and shows each one's date and size. Click the refresh button at the top to rescan the folder.
+
+<Frame caption="The Recording Library lists recordings grouped by host.">
+  ![The Recording Library with one recording for demo@127.0.0.1](/images/10-recordings/02-library.png)
+</Frame>
+
+Click a recording, or its play button, to open the player next to the list.
+
+<Frame caption="The player replays the session in a terminal view.">
+  ![The recording player with a timeline, play button and speed menu](/images/10-recordings/03b-player-playing.png)
+</Frame>
+
+| Control | What it does |
+|---|---|
+| Play / pause button | Starts or pauses the replay. |
+| Timeline | Shows elapsed and total time. Drag or click it to seek. |
+| Speed menu | Plays at `0.5x`, `1.0x`, `2.0x` or `5.0x`. |
+
+Click the trash icon on a recording to delete it. YourSSH asks **Delete recording?** first, and the file is removed from disk.
+
+<Frame caption="Deleting a recording asks for confirmation.">
+  ![The Delete recording confirmation dialog](/images/10-recordings/04-delete-confirm.png)
+</Frame>
+
+## Where recordings are stored
+
+Recordings go to the folder in **Settings → Recording → Recording path**. The default is `Documents/YourSSH/Recordings` in your home folder. Click **Change…** to pick another folder.
+
+Each host gets a sub-folder, and each recording is named by its start time. Local terminals use a sub-folder named `local`.
+
+```text
+<recording path>/<user>@<host>/session_YYYY-MM-DD_HH-mm-ss.cast
+```
+
+YourSSH creates the folders and files so only your user can read them (mode `700` and `600` on macOS and Linux), because a recording can contain sensitive output. Because the files are standard asciicast v2, you can also play them with the `asciinema` tool.
+
+## Related pages
+
+- [Terminal](/user-guide/terminal)
+- [Audit log](/user-guide/audit-log)
+- [Settings](/user-guide/settings)

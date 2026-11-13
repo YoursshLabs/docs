@@ -1,0 +1,69 @@
+name: Docs
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install the Mintlify CLI
+        run: npm i -g mint
+      - name: Validate the build
+        run: mint validate
+      - name: Check links
+        run: mint broken-links
+
+  deploy:
+    name: Deploy to Mintlify
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
+      MINTLIFY_PROJECT_ID: ${{ secrets.MINTLIFY_PROJECT_ID }}
+    steps:
+      - name: Trigger the deployment and wait for it
+        run: |
+          set -euo pipefail
+          if [ -z "${MINTLIFY_API_KEY}" ] || [ -z "${MINTLIFY_PROJECT_ID}" ]; then
+            echo "::warning::MINTLIFY_API_KEY / MINTLIFY_PROJECT_ID are not set; skipping the API deployment."
+            exit 0
+          fi
+          api=https://api.mintlify.com/v1
+          resp=$(curl -fsS -X POST "$api/project/update/${MINTLIFY_PROJECT_ID}" \
+            -H "Authorization: Bearer ${MINTLIFY_API_KEY}")
+          status_id=$(echo "$resp" | jq -r '.statusId // empty')
+          if [ -z "$status_id" ]; then
+            echo "::error::Mintlify did not return a statusId: $resp"
+            exit 1
+          fi
+          echo "Deployment queued: $status_id"
+          for i in $(seq 1 60); do
+            sleep 10
+            st=$(curl -fsS "$api/project/update-status/${status_id}" \
+              -H "Authorization: Bearer ${MINTLIFY_API_KEY}" | jq -r '.status // empty')
+            echo "status: ${st:-unknown}"
+            case "$st" in
+              success) echo "Deployed."; exit 0 ;;
+              skipped) echo "::notice::Mintlify skipped the update (nothing to deploy)."; exit 0 ;;
+              failure) echo "::error::Mintlify deployment failed"; exit 1 ;;
+            esac
+          done
+          echo "::error::Timed out waiting for the Mintlify deployment"
+          exit 1

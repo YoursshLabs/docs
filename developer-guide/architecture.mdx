@@ -1,0 +1,140 @@
+---
+title: Architecture
+description: How the YourSSH monorepo is organized, how data flows through the app, and which design decisions matter for security.
+icon: sitemap
+---
+
+YourSSH is a Flutter app for macOS, Windows, Linux and Android. The desktop app is the main product; a smaller mobile UI (SSH only) ships on Android. This page is a map of the code, not a class reference. Follow the links to the source when you need detail.
+
+<Note>
+The repository's [`CLAUDE.md`](https://github.com/YoursshLabs/yourssh/blob/develop/CLAUDE.md) is the detailed, always-current reference for every subsystem. Use this page to find your way, then read `CLAUDE.md` for the specifics.
+</Note>
+
+## Monorepo layout
+
+```text
+yourssh/
+├── app/                        # The Flutter app
+│   └── lib/
+│       ├── main.dart           # Entry point: builds services and providers, wires callbacks
+│       ├── models/             # Host, sessions, port forwards, ...
+│       ├── providers/          # ChangeNotifier state
+│       ├── services/           # SSH, storage, sync, CLI endpoint, recording, ...
+│       ├── screens/            # MainScreen, tab bar and sidebar (screens/shell/)
+│       ├── widgets/            # UI, one folder or file per feature area
+│       ├── mobile/             # Android UI
+│       └── plugins/            # plugin_registry.dart (built-in Dart plugins)
+├── packages/
+│   ├── dartssh2/               # Local fork: SSH, SFTP, forwarding, agent forwarding
+│   ├── xterm/                  # Local fork: terminal emulator widget
+│   ├── flutter_pty/            # Local fork: local terminal PTY
+│   ├── yourssh_ui/             # Design system (forui wrapper, Ys* tokens and components)
+│   ├── yourssh_cli/            # Pure-Dart `yourssh` command-line client
+│   ├── yourssh_rdp/            # Rust RDP client (IronRDP) bridged with flutter_rust_bridge
+│   ├── yourssh_vnc/            # Rust VNC client bridged with flutter_rust_bridge
+│   ├── yourssh_plugin_api/     # YourSSHPlugin interface for Dart plugins
+│   ├── yourssh_snippets/       # Built-in plugin: Snippets
+│   ├── yourssh_devops/         # Built-in plugin: DevOps Hub
+│   ├── yourssh_web_tools/      # Built-in plugin: Web Tools
+│   └── yourssh_script_engine/  # JavaScript plugin runtime (QuickJS)
+├── tool/                       # Scripts: UI lint, icon generation, docs journey
+└── .github/workflows/          # pr-test.yml, release.yml
+```
+
+The three forks (`dartssh2`, `xterm`, `flutter_pty`) and every `yourssh_*` package are wired in through `dependency_overrides` in `app/pubspec.yaml`. A change in `packages/` shows up in the app immediately; there is nothing to publish. Each fork carries specific patches, listed in `CLAUDE.md`. If you change a fork, explain in your pull request why the fix can't live in `app/`.
+
+## Data flow
+
+```text
+Flutter UI (screens/, widgets/)
+  └── Providers (ChangeNotifier, via the provider package)
+        └── Services
+              ├── SshService ──► dartssh2 (fork) ──► remote SSH host
+              ├── RDP / VNC clients ──► Rust libraries (FFI)
+              ├── StorageService ──► system credential store, SharedPreferences
+              └── SyncService ──► Supabase
+```
+
+`main.dart` creates the services and long-lived providers once, connects them with callbacks (key lookup, host-key verification, sync on change), then mounts `MainScreen` under a `MultiProvider`. Widgets read state from providers and never talk to services directly.
+
+## Providers and services
+
+These are the ones you meet first. Browse [`app/lib/providers/`](https://github.com/YoursshLabs/yourssh/tree/develop/app/lib/providers) and [`app/lib/services/`](https://github.com/YoursshLabs/yourssh/tree/develop/app/lib/services) for the rest.
+
+| Piece | Responsibility |
+|---|---|
+| `HostProvider` | Saved hosts (SSH, RDP, VNC). Fires a mutation callback that triggers a sync push, and tears down dependents when a host is deleted. |
+| `SessionProvider` | The unified tab list: SSH sessions, local shells, RDP and VNC tabs. Handles auto-reconnect, host-key verification callbacks and key lookup. |
+| `KeyProvider`, `KnownHostsProvider` | SSH keys and pinned host keys. |
+| `PortForwardProvider`, `TunnelProvider` | Persistent forwarding rules and runtime tunnel state. |
+| `SettingsProvider` | App-wide preferences. |
+| `SyncProvider` | Supabase sync configuration and status. |
+| `RecordingProvider` | The recording library (`.cast` files). |
+| `AiChatProvider` | AI chat state for Anthropic, OpenAI and Gemini. |
+| `PluginProvider`, `PluginEngineProvider` | Built-in Dart plugins and JavaScript script plugins. |
+| `SshService` | Owns the SSH clients and sessions: connect, shell, exec, SFTP, disconnect. |
+| `StorageService` | Credential storage (system credential store first). |
+| `SyncService`, `P2PSyncService` | Cloud sync and LAN sync. |
+| `RecordingService` | Writes Asciinema v2 recordings. |
+| `ShareSessionService` | Terminal sharing over Supabase Realtime. |
+
+## Navigation
+
+`MainScreen` ([`app/lib/screens/main_screen.dart`](https://github.com/YoursshLabs/yourssh/blob/develop/app/lib/screens/main_screen.dart)) renders a top tab bar and a left sidebar, both under [`app/lib/screens/shell/`](https://github.com/YoursshLabs/yourssh/tree/develop/app/lib/screens/shell). The sidebar maps each `NavSection` (hosts, keychain, port forwarding, SFTP, known hosts, recordings, audit, settings, plugins) to a top-level screen under `app/lib/widgets/`. The host editor is a single side panel, `HostDetailPanel`, with an SSH / RDP / VNC switch at the top.
+
+## Remote desktop
+
+RDP and VNC run in Rust and are loaded as native libraries through `flutter_rust_bridge`:
+
+- `packages/yourssh_rdp` wraps IronRDP. The first connection to an unpinned host stops before credentials are sent, so the user can pin the certificate first.
+- `packages/yourssh_vnc` is the VNC client.
+
+The libraries load lazily on the first RDP or VNC connection. They are not tracked in git; see [Build from source](/developer-guide/build#native-rdp-and-vnc-libraries).
+
+## Plugins
+
+Two kinds coexist: Dart plugins compiled into the app, and JavaScript plugins loaded from disk at runtime. See [Plugin system](/developer-guide/plugin-system).
+
+## Security-relevant design
+
+These behaviours are part of the product's security model. Keep them intact when you change nearby code.
+
+<AccordionGroup>
+  <Accordion title="Host-key verification">
+    `KnownHostsProvider` pins one key per host, port and key type. An unknown endpoint is accepted on first use after the user confirms it. If a host already pinned under one key type presents a key of a new type, the app shows a blocking "Host key type changed" prompt, so a man-in-the-middle can't slip past by offering a different algorithm. RDP works the same way with certificate fingerprints, checked before any credentials are sent. The dialogs live in [`tofu_dialogs.dart`](https://github.com/YoursshLabs/yourssh/blob/develop/app/lib/widgets/tofu_dialogs.dart) and focus the safe choice by default. The `dartssh2` fork also implements strict key exchange (the Terrapin mitigation).
+  </Accordion>
+  <Accordion title="Credential storage">
+    `StorageService` writes passwords, key passphrases and the sync passphrase to the system credential store first (macOS Keychain or Windows Credential Manager). Only if that fails does it fall back to `SharedPreferences`, and the fallback is visible in **Settings** and the notification bell. On every launch the app tries to move leftover plaintext secrets into the store, confirming each write before it removes the old copy.
+  </Accordion>
+  <Accordion title="Sync encryption">
+    Cloud sync is opt-in. A 12-character sync code is the only secret: it derives the AES-256-GCM key through PBKDF2-HMAC-SHA256, and the Supabase row id is a one-way hash of it, so the code is never stored server-side. A pulled payload is applied only if its authenticated inner timestamp is newer than the last push and the last applied payload, which prevents rollback. LAN sync uses a random 32-byte key carried in a QR code, and the one-shot server closes after one transfer. Terminal sharing encrypts every message with a key derived from the share code.
+  </Accordion>
+  <Accordion title="CLI endpoint">
+    The `yourssh` command talks to the running app over a Unix socket (macOS, Linux) or a named pipe (Windows). The run directory is private to the user, the app rejects any peer with a different user id or SID, and a fresh random token is written at every launch and compared in constant time. A lock file makes the app single-instance. The `yourssh://connect/...` URL scheme only opens saved hosts.
+  </Accordion>
+  <Accordion title="Plugin sandbox">
+    JavaScript plugins run in an isolated QuickJS context with declared permissions, user consent bound to file hashes, execution limits and a circuit breaker. Details are in [Plugin system](/developer-guide/plugin-system).
+  </Accordion>
+</AccordionGroup>
+
+## Design system
+
+The app is dark only. `packages/yourssh_ui` wraps [forui](https://forui.dev) (the "Amber Brand" theme) and re-exports it, so app code imports `package:yourssh_ui/yourssh_ui.dart` and gets the `F*` widgets, Lucide icons and the `Ys*` tokens (`YsColors`, `YsSpace`, `YsRadius`) and components (`YsHostCard`, `YsFileTable`, `YsStatusBar`, `YsTab`, `YsPluginHost`).
+
+The rules for contributors:
+
+- Build new or rebuilt UI from forui widgets or `Ys*` components, not hand-styled Material.
+- Use `showYsToast` for toasts and `showYsDialog` or `showYsConfirm` for dialogs.
+- Use `YsColors` tokens, not `Color(0x...)` literals in widgets.
+- `tool/check_ui_lint.sh` enforces this in CI. See [Contributing](/developer-guide/contributing#ui-lint-gate).
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Build from source" icon="hammer" href="/developer-guide/build">
+    Toolchain, run, test and CI.
+  </Card>
+  <Card title="Plugin system" icon="puzzle" href="/developer-guide/plugin-system">
+    Dart and JavaScript plugins.
+  </Card>
+</CardGroup>

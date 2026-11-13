@@ -1,55 +1,32 @@
-# Mintlify Starter Kit
+# YourSSH documentation
 
-Use the starter kit to get your docs deployed and ready to customize.
+Source of the YourSSH documentation site, built with [Mintlify](https://mintlify.com). The app lives in [YoursshLabs/yourssh](https://github.com/YoursshLabs/yourssh).
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
-
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
-
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
-
-## AI-assisted writing
-
-Set up your AI coding tool to work with Mintlify:
+## Preview locally
 
 ```bash
-npx skills add https://mintlify.com/docs
+npx mint dev            # http://localhost:3000
+npx mint validate       # the same build check CI runs
+npx mint broken-links
 ```
 
-This command installs Mintlify's documentation skill for your configured AI tools like Claude Code, Cursor, Windsurf, and others. The skill includes component reference, writing standards, and workflow guidance.
+Requires Node.js 20.17 or newer.
 
-See the [AI tools guides](/ai-tools) for tool-specific setup.
+## Structure
 
-## Development
+- `docs.json` — site config and navigation. A page must be listed here to be published.
+- `index.mdx`, `installation.mdx`, `quickstart.mdx` — getting started.
+- `user-guide/` — one page per feature.
+- `developer-guide/` — building from source, architecture and plugins.
+- `images/<NN-section>/` — screenshots from the app repo's isolated docs journey (`tool/docs_journey.sh`), resized to at most 1440 px wide.
 
-Install the [Mintlify CLI](https://www.npmjs.com/package/mint) to preview your documentation changes locally. To install, use the following command:
+Writing rules and terminology: [AGENTS.md](AGENTS.md).
 
-```
-npm i -g mint
-```
+## Build and deploy
 
-Run the following command at the root of your documentation, where your `docs.json` is located:
+`.github/workflows/docs.yml`:
 
-```
-mint dev
-```
+- Every pull request and every push to `main` run `mint validate` and `mint broken-links`.
+- After those pass on `main`, the workflow asks Mintlify to deploy the site and waits for the result. It uses the repository secrets `MINTLIFY_API_KEY` (an admin API key, `mint_…`) and `MINTLIFY_PROJECT_ID`, both from the Mintlify dashboard's API keys page. Without them the deploy step is skipped with a warning.
 
-View your local preview at `http://localhost:3000`.
-
-## Publishing changes
-
-Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.
-
-## Need help?
-
-### Troubleshooting
-
-- If your dev environment isn't running: Run `mint update` to ensure you have the most recent version of the CLI.
-- If a page loads as a 404: Make sure you are running in a folder with a valid `docs.json`.
-
-### Resources
-- [Mintlify documentation](https://mintlify.com/docs)
+To make CI the only way the site deploys, turn off automatic deployments for this repository in the Mintlify dashboard after adding the secrets.

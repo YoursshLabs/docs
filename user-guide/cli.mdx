@@ -1,0 +1,140 @@
+---
+title: "Command line and links"
+description: "Open hosts from a terminal, a script or a link with the yourssh command and yourssh:// URLs."
+icon: "square-terminal"
+---
+
+The `yourssh` command asks the running YourSSH app to do something, such as open a host. It is useful from a shell, a script or a launcher. YourSSH can also open saved hosts from `yourssh://` links.
+
+<Note>
+The command-line client is in its first phase. Release builds don't include the `yourssh` binary yet, so you run it from the source repository. In a release build, `yourssh` (or `yourssh.exe`, or `/usr/bin/yourssh` from the `.deb`) is the app itself.
+</Note>
+
+## Run the client
+
+You need the Dart SDK and a checkout of the [YourSSH repository](https://github.com/YoursshLabs/yourssh). From the repository root, run:
+
+```bash
+dart run packages/yourssh_cli/bin/yourssh.dart <command>
+```
+
+Or compile a standalone binary once and put it on your `PATH`:
+
+```bash
+dart compile exe packages/yourssh_cli/bin/yourssh.dart -o yourssh
+```
+
+The examples below use `yourssh`. The client works on macOS, Linux and Windows.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `yourssh connect <host>` | Opens a host in a new tab and brings the YourSSH window to the front. |
+| `yourssh ls [--json] [--tag T] [--filter Q]` | Lists your saved hosts. |
+| `yourssh version` | Prints the client and app versions. |
+| `yourssh open <url>` | Opens a `yourssh://connect/<host>` link. |
+| `yourssh help` | Shows the usage text. |
+
+### connect
+
+```bash
+yourssh connect "Demo Server"
+```
+
+`<host>` is matched against your saved hosts in this order:
+
+1. The host id.
+2. The label, ignoring case. If several hosts have that label, the command lists them and exits with code 2. Use the id instead.
+3. A `user@hostname[:port]` that equals a saved host.
+
+If nothing matches, an address of the form `user@hostname[:port]` opens an unsaved SSH connection. Port 22 is used when you leave the port out. This signs in with the keys from your SSH agent. A server that only accepts a password needs a saved host, because the app has no password prompt for unsaved hosts.
+
+`connect` returns as soon as the tab opens. It doesn't wait for sign-in. RDP and VNC hosts open the same way.
+
+### ls
+
+```bash
+yourssh ls
+yourssh ls --tag prod --filter db
+yourssh ls --json
+```
+
+The table has the columns `LABEL`, `USER@HOST:PORT`, `PROTOCOL` and `TAGS`. `--tag` limits the list to a tag and `--filter` to hosts matching a search text. `--json` prints a stable JSON list for scripts and launchers. It never contains passwords, keys or passphrases.
+
+### version
+
+`yourssh version` prints the client version and the app version. It never starts the app. If the app isn't running, it says **YourSSH app: not running** and exits with code 3.
+
+### open
+
+```bash
+yourssh open "yourssh://connect/Demo%20Server"
+```
+
+This is the same as following the link. See [Links](#yourssh-links) below.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. |
+| `1` | The command failed. |
+| `2` | Bad arguments, or an unknown or ambiguous host. |
+| `3` | The app isn't reachable, still starting, or speaks a different protocol version. |
+| `4` | Access denied. The client refused to talk to the app or the app refused the client. |
+
+## If the app isn't running
+
+`connect`, `ls` and `open` start YourSSH for you and wait up to 15 seconds for it. They then wait until your hosts and keys have loaded. `version` never starts the app.
+
+How the client finds the app depends on the platform:
+
+- **macOS**: it asks the system to open YourSSH by its bundle identifier. If YourSSH isn't installed, the command fails at once with exit code 3.
+- **Linux and Windows**: YourSSH writes its own location to a file in your user's run folder each time it starts, and the client launches that path. If the file isn't there yet, or the path isn't safe to run, start YourSSH once from the launcher or Start menu.
+
+## Security
+
+The client and the app talk over a local channel that only your own user account can reach.
+
+- **A private socket or pipe.** On macOS and Linux it is a Unix socket in a private folder. On Windows it is a named pipe that only your user can open, and remote clients are refused.
+- **Same user only.** The app checks which user is on the other end and drops anyone else.
+- **A token.** The app writes a new random token to a private file each time it starts. Every request must carry it.
+- **No secrets.** Passwords, keys and passphrases never appear in command arguments, output or `--json`.
+- **Same safeguards as the app.** A connection opened by the command goes through the usual host key check and is written to the [audit log](/user-guide/audit-log).
+
+The app only allows one running instance. Starting it a second time brings the existing window forward.
+
+## YourSSH links
+
+A `yourssh://connect/<host-id-or-label>` link opens a saved host. Use it from a bookmark, a note or another app.
+
+```text
+yourssh://connect/Demo%20Server
+```
+
+- Only saved hosts work. A link can't point YourSSH at a new address or run a command, so a web page can't use it to connect you to someone else's server.
+- The link has exactly one path segment. Queries, ports and user names in the link are refused.
+- Opening the same link again within two seconds is ignored.
+- A refused link, for example an unknown or ambiguous host, shows up in the notification bell as **Link refused**.
+
+### Where links are registered
+
+| Platform | Registered by |
+|---|---|
+| macOS | The app. |
+| Windows | The installer, for the user who installs it. The portable zip doesn't register the scheme. |
+| Linux | The `.deb` package. The tarball doesn't register the scheme. |
+
+Where the scheme isn't registered, you can still use `yourssh open <url>`.
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Hosts" icon="server" href="/user-guide/hosts">
+    Save the hosts the command opens.
+  </Card>
+  <Card title="Audit log" icon="scroll-text" href="/user-guide/audit-log">
+    See connects started by the command or a link.
+  </Card>
+</CardGroup>

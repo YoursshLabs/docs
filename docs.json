@@ -2,67 +2,105 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "YourSSH",
+  "description": "YourSSH is a fast, open-source SSH, SFTP, RDP and VNC client for macOS, Windows, Linux and Android.",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#E87C08",
+    "light": "#F3A231",
+    "dark": "#C76A06"
+  },
+  "appearance": {
+    "default": "dark"
   },
   "favicon": "/favicon.svg",
+  "icons": {
+    "library": "lucide"
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://github.com/YoursshLabs/yourssh"
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "User guide",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get started",
             "pages": [
               "index",
-              "quickstart",
-              "development"
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Connections",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "user-guide/hosts",
+              "user-guide/host-keys",
+              "user-guide/terminal",
+              "user-guide/terminal-sharing",
+              "user-guide/bulk-actions",
+              "user-guide/port-forwarding"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Files",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "user-guide/sftp"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Remote desktop",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "user-guide/rdp",
+              "user-guide/vnc"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "user-guide/keychain",
+              "user-guide/recording",
+              "user-guide/audit-log"
+            ]
+          },
+          {
+            "group": "Tools",
+            "pages": [
+              "user-guide/snippets",
+              "user-guide/ai-chat",
+              "user-guide/devops",
+              "user-guide/web-tools",
+              "user-guide/cli"
+            ]
+          },
+          {
+            "group": "Settings and sync",
+            "pages": [
+              "user-guide/settings",
+              "user-guide/sync",
+              "user-guide/mobile"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Developer guide",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Develop",
             "pages": [
-              "api-reference/introduction"
+              "developer-guide/architecture",
+              "developer-guide/build",
+              "developer-guide/contributing"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Plugins",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "developer-guide/plugin-system",
+              "developer-guide/plugin-authoring"
             ]
           }
         ]
@@ -71,52 +109,43 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "GitHub",
+          "href": "https://github.com/YoursshLabs/yourssh",
+          "icon": "github"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "Releases",
+          "href": "https://github.com/YoursshLabs/yourssh/releases",
+          "icon": "download"
         }
       ]
     }
   },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "Issues",
+        "href": "https://github.com/YoursshLabs/yourssh/issues"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "Download",
+      "href": "https://github.com/YoursshLabs/yourssh/releases/latest"
     }
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity"
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/YoursshLabs/yourssh"
     }
   }
 }
