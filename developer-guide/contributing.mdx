@@ -1,0 +1,91 @@
+---
+title: Contributing
+description: How to propose changes to YourSSH, from branching and commit style to the checks every pull request must pass.
+icon: git-pull-request
+---
+
+Contributions of every kind are welcome: bug reports, feature ideas, documentation and code. For a larger change, open an issue first so you can agree on the approach before you invest time. The project follows its [Code of Conduct](https://github.com/YoursshLabs/yourssh/blob/develop/CODE_OF_CONDUCT.md).
+
+## Ways to contribute
+
+- Report a bug or suggest a feature in the [issue tracker](https://github.com/YoursshLabs/yourssh/issues/new/choose).
+- Ask a question in an issue or in [Discussions](https://github.com/YoursshLabs/yourssh/discussions).
+- Submit code, as described below.
+
+<Warning>
+Report security vulnerabilities privately through [GitHub private vulnerability reporting](https://github.com/YoursshLabs/yourssh/security/advisories/new). Never open a public issue, discussion or pull request for one. See the [security policy](https://github.com/YoursshLabs/yourssh/blob/develop/SECURITY.md). Fixes are applied to the latest release only.
+</Warning>
+
+## Set up
+
+<Steps>
+  <Step title="Fork and clone">
+    Fork [YoursshLabs/yourssh](https://github.com/YoursshLabs/yourssh) and clone your fork.
+  </Step>
+  <Step title="Get the app running">
+    Follow [Build from source](/developer-guide/build).
+  </Step>
+  <Step title="Branch from develop">
+    ```bash
+    git checkout develop
+    git pull origin develop
+    git checkout -b feat/my-feature
+    ```
+  </Step>
+</Steps>
+
+## Branches
+
+- `develop` is the working branch. **Open your pull requests against `develop`.**
+- `master` is the release branch. Maintainers cut releases by merging `develop` into `master`, and every push to `master` publishes a release.
+
+## Pull requests
+
+Before you open a pull request:
+
+- [ ] `flutter analyze` reports no new warnings or errors.
+- [ ] `flutter test` passes, plus the tests of any package you changed.
+- [ ] `bash tool/check_ui_lint.sh` passes (see [below](#ui-lint-gate)).
+- [ ] New or changed behavior has tests. Keep pure logic separate from Flutter and I/O so you can unit-test it; look in `app/test/` for patterns.
+- [ ] UI changes include a screenshot. The app is dark only.
+- [ ] No secrets, credentials, hostnames or personal data in code, tests or screenshots.
+
+CI runs the same checks on every pull request (see [CI workflows](/developer-guide/build#ci-workflows)). Write code, comments and documentation in English, and fill in the pull request template.
+
+### Titles and commits
+
+Pull request titles and commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```text
+feat(sftp): add drag-and-drop upload to remote panel
+fix(terminal): preserve scrollback on reconnect
+docs: clarify the build steps
+refactor(sync): simplify the retry loop
+test(ssh): cover host-key type changes
+```
+
+### Local forks
+
+`dartssh2`, `xterm` and `flutter_pty` are local forks that carry specific patches. If your change touches one, explain in the pull request why it can't be solved in `app/`, and link the upstream issue when there is one.
+
+## Code style
+
+- Match the surrounding code: naming, structure and comment density.
+- Keep widgets, providers and services in their established folders under `app/lib/`.
+- State management uses `provider` with `ChangeNotifier`. Follow the existing patterns.
+
+## UI and the design system
+
+New or rebuilt UI is built from forui widgets or `Ys*` components from `packages/yourssh_ui`, not hand-styled Material. Use `YsColors` tokens instead of color literals, `showYsToast` for toasts and `showYsDialog` or `showYsConfirm` for dialogs. See the [design system](/developer-guide/architecture#design-system) section.
+
+### UI lint gate
+
+`tool/check_ui_lint.sh` scans `app/lib` and the Snippets, DevOps and Web Tools packages. It fails on the Material widgets the design system replaced: `IconButton(`, `AlertDialog(`, `SnackBar(`, `Icons.`, `ScaffoldMessenger`, `showDialog(`, `showModalBottomSheet` and `TextField(`. The forui equivalents, such as `FTextField(` and `showYsDialog(`, pass. A justified exception goes in `tool/ui_lint_allowlist.txt` as `path:pattern  # reason`, and needs a good reason.
+
+## Documentation
+
+This documentation lives in its own repository, [YoursshLabs/docs](https://github.com/YoursshLabs/docs), separate from the app. If your change alters user-visible behavior, update the matching page there or mention it in your pull request. To preview the docs locally, run `npx mint dev` in that repository; CI runs `mint validate` and `mint broken-links` on every pull request.
+
+## Releases
+
+Maintainers handle releases: a `CHANGELOG.md` entry, a version bump in `app/pubspec.yaml`, and the merge from `develop` to `master`. Contributors don't need to do any of this.

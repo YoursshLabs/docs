@@ -1,0 +1,96 @@
+---
+title: "Terminal sharing"
+description: "Share a live SSH session with up to five teammates, end-to-end encrypted, and hand over control when you choose."
+icon: "screen-share"
+---
+
+Terminal sharing lets teammates watch your live SSH session in their own YourSSH window. Guests see the terminal in real time and are read-only until you grant one of them control.
+
+## How it works
+
+- The host streams terminal output through your own **Supabase** project using Supabase Realtime.
+- You share a **share code** that looks like `ROOM-SECRET`, for example `A3K9PX-XXXXXXXXXXXXXXXX` (6 + 16 characters).
+- The code is also the encryption key. The channel name is a hash of the code, and every message is encrypted with AES-256-GCM using a key derived from the code. Supabase and anyone who only holds your project's anon key see neither the terminal content nor the secret.
+- A guest who joins late first receives a snapshot of the recent output (up to about 500 KB), then live output.
+
+## Requirements
+
+- YourSSH is open on both the host's and the guest's machine.
+- Both use the same Supabase project, configured in **Settings → Sync**. See [Sync](/user-guide/sync).
+- The session you share is a connected SSH session. Local terminals can't be shared.
+
+Without a configured Supabase project, the **Share** button and the **Join Shared Session** command are hidden.
+
+## Share a session
+
+<Steps>
+  <Step title="Open the Share dialog">
+    In a connected SSH tab, click the **Share** button (the screen-share icon) at the right of the terminal header. Its tooltip reads **Share this terminal**.
+  </Step>
+  <Step title="Start sharing">
+    In the **Share Terminal** dialog, click **Start Sharing**. The dialog notes that the session is end-to-end encrypted with the share code. The title changes to **Sharing Live** and the dialog shows the share code and a QR code.
+  </Step>
+  <Step title="Send the code">
+    Click the code to copy it (a **Code copied** message confirms), and send it to your teammate. The QR code encodes `yourssh://share/<code>`. While you share, the header button is highlighted and its tooltip reads **Sharing active**.
+  </Step>
+  <Step title="Stop when you are done">
+    Open the dialog again and click **Stop Sharing**. Guests see **Session ended by host**.
+  </Step>
+</Steps>
+
+Treat the share code like a password. Anyone who has it can join, up to five guests at once. Joins are accepted automatically.
+
+## Join a session
+
+<Steps>
+  <Step title="Open the command palette">
+    Press `Cmd+K` / `Ctrl+K` and choose **Join Shared Session**.
+  </Step>
+  <Step title="Enter the code">
+    Paste the full code into the **Join Shared Session** dialog and click **Join**. A code that isn't in the `XXXXXX-XXXXXXXXXXXXXXXX` shape is rejected with an error, and you see **Configure Supabase first (Settings → Sync)** if sync isn't set up.
+  </Step>
+</Steps>
+
+A new tab opens in watch mode. A banner above the terminal tells you where you stand:
+
+| Banner | Meaning |
+|---|---|
+| **Watching: … · Read-only** | You can see the session but your keystrokes are not accepted |
+| **You have control** | The host granted you control, so your input reaches the host's shell |
+| **Session ended by host** | The host stopped sharing or disconnected |
+
+Click **Leave** in the banner, or close the tab, to disconnect. This doesn't affect the host. If the host already has five guests, your join is rejected.
+
+The status bar shows **Watching** instead of **Connected** for a watch tab.
+
+## Hand over control
+
+Guests can't type until you allow it. In the sharing dialog, the guest list appears under **Grant control**. Each guest is shown by a short ID (the first 8 characters).
+
+- Click **Grant** next to a guest to give them control. The section becomes **Control granted**.
+- Click **Revoke** to take control back.
+
+Only one guest can have control at a time. The host's shell accepts input only from the guest that currently has control, and your own typing always works. Input from any other guest is rejected.
+
+<Warning>
+A guest with control can run commands as your user on the remote host. Grant control only to people you trust, and revoke it when you are finished.
+</Warning>
+
+## Security notes
+
+- **Encryption.** Messages are end-to-end encrypted with a key derived from the share code, over the TLS connection to Supabase. The server doesn't hold the key.
+- **Share code is the credential.** Anyone who learns the code can join while you share, until the five guest slots are full. Send it over a channel you trust and stop sharing when done.
+- **Guests aren't authenticated individually.** There are no per-guest keys, so a guest who holds the code could pretend to be another guest. While you have granted control to one guest, treat all guests as able to act with that identity.
+- **Auto-accept.** Join requests are accepted without confirmation. Watch the guest list in the dialog.
+
+## Limitations
+
+- Sharing needs a live Supabase Realtime connection.
+- A maximum of five guests per shared session.
+- When the host disconnects or stops sharing, every guest session ends.
+- Only SSH sessions can be shared, not RDP, VNC or local shells.
+
+## Related pages
+
+- [Terminal](/user-guide/terminal) for panes, search and shortcuts.
+- [Sync](/user-guide/sync) to configure the Supabase project that sharing uses.
