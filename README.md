@@ -1,6 +1,10 @@
 # YourSSH documentation
 
-Source of the YourSSH documentation site, built with [Mintlify](https://mintlify.com). The app lives in [YoursshLabs/yourssh](https://github.com/YoursshLabs/yourssh).
+Source of the YourSSH documentation site, built with [Mintlify](https://mintlify.com).
+
+**Live site: https://sen-f208ff9e.mintlify.app**
+
+The app lives in [YoursshLabs/yourssh](https://github.com/YoursshLabs/yourssh).
 
 ## Preview locally
 
@@ -29,4 +33,6 @@ Writing rules and terminology: [AGENTS.md](AGENTS.md).
 - Every pull request and every push to `main` run `mint validate` and `mint broken-links`.
 - After those pass on `main`, the workflow asks Mintlify to deploy the site and waits for the result. It uses the repository secrets `MINTLIFY_API_KEY` (an admin API key, `mint_…`) and `MINTLIFY_PROJECT_ID`, both from the Mintlify dashboard's API keys page. Without them the deploy step is skipped with a warning.
 
-To make CI the only way the site deploys, turn off automatic deployments for this repository in the Mintlify dashboard after adding the secrets.
+`main` is protected: changes land through pull requests, and the **Build and check** job must pass before merging.
+
+The Mintlify GitHub App also deploys on every push to `main`. To make CI the only way the site deploys, turn off automatic deployments for this repository in the Mintlify dashboard.
